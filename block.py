@@ -12,4 +12,3 @@ class Block:
 
     def __len__(self):
         return self.length_of_chain
-

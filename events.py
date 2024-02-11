@@ -1,188 +1,176 @@
 # 4 events TxnGenerated, TransactionReceive, BlockGenerate, BlockReceive
 from block import Block
 from transaction import trasactions
+from simulator import simulator
+from node import Node
 import random
+import numpy as np
 
 class Event:
-    def __init__(self, event_created_by , node_id, event_type, timestamp):
+    def __init__(self, event_created_by ,node, node_id, timestamp):
 
         #node which is creating event
         self.event_created_by=event_created_by
 
         #node on which this event will happen
-        self.node_id = node_id
+        self.node=node
 
-        #Type of event to be executed
-        self.event_type=event_type
+        #node id on which this event will happen
+        self.node_id = node_id 
         
         # Time at whcih this event will run 
         self.timestamp=timestamp
 
-    def __sort__(self, other):
-        return self.timestamp<other.timestamp
-    
-
-    
-
+    def __lt__(self, other):
+        return self.timestamp < other.timestamp
 
 #1st event 
-#revisit the logic
 class TxnGenerated(Event):
-    def __init__(self, event_created_by, node_id, event_type, timestamp):
-        super().__init__(event_created_by, node_id, "TxnGenerated", timestamp)        
-
+    def __init__(self, event_created_by, node, node_id, timestamp): 
+        super().__init__(event_created_by, node, node_id, timestamp)
+        
     def __str__(self):
-        return f"{self.node_id} has geneated a Transaction \n"
-
-
-    def generate_transaction(self):
-        # Sample a transaction amount and a receiver uniformly at random
-        transaction_amount = random.uniform(1, self.coins)  # Adjust the range as needed
-        nodelistwithoutme = list(set(self.all_nodes.keys()) - set([self.node_id]))
-        receiver_id = random.choice(nodelistwithoutme)#thik karo
-
-        #receiver_id = random.choice(self.neighbours)#thik karo
-
-        ##adding and removing coins from ourself and reciever
-        self.coins = self.coins - transaction_amount
-        receiver_id.coins = receiver_id.coins + transaction_amount
-
-        # Sample a network delay using connection link speeds, transaction size, and queuing delay
-        network_delay = random.uniform(0, 10)  # Adjust the range as needed#thik karo
+        return f"{self.node_id} has generated a Transaction \n"
         
-        # Create the transaction and add it to the transaction queue
-        transaction = trasactions(transaction_id=len(self.transaction_queue) + 1,
-                                  coins=transaction_amount,
-                                  sender_id=self.node_id,
-                                  receiver_id=receiver_id)
-        
-        self.transaction_queue.append(transaction)
+    def execute_event(self):
+        self.node.generate_transaction()
 
-        event = Event(event_created_by=self.node_id, node_id=neighbour, event_type="TxnGenerated",timestamp=scheduled_timestamp)
-        self.event_queue.append(event)
-
-        # Schedule a txnRcv event at each peer/neighbour, at the current time + network delay
-        for neighbour in self.neighbours:
-            scheduled_timestamp = self.Ttx + network_delay
-            event = Event(event_created_by=self.node_id, node_id=neighbour, event_type="TxnReceived",timestamp=scheduled_timestamp)
-            neighbour.event_queue.append(event)#
-        
-        event = Event(event_created_by=self.node_id, node_id=neighbour, event_type="TxnReceived",timestamp=scheduled_timestamp)
-
-
-#2nd event
 class TxnReceived(Event):
-    def __init__(self, event_created_by, node_id, event_type, timestamp):
-        super().__init__(event_created_by, node_id,"TxnReceived" ,timestamp)
-    
-    def txn_received(self, transaction):
-        # Check if the transaction has already been received
-        if transaction.transaction_id not in [txn.transaction_id for txn in self.transaction_queue]:
-            # Add the transaction to the received transactions
-            self.transaction_queue.append(transaction)
+    def __init__(self, event_created_by, node, node_id, timestamp, transaction):
+        super().__init__(event_created_by, node, node_id, timestamp=timestamp)
+        self.transaction = transaction
 
-            # Schedule a txnRcv event at each neighbour with a randomly sampled delay
-            for neighbour in self.neighbours:
-                delay = random.uniform(0, 10)  # Adjust the range of delay as needed
-                scheduled_timestamp = self.Ttx + delay#thik karo
-                event = Event(event_created_by=self.node_id, node_id=neighbour, event_type="TxnReceived", timestamp=scheduled_timestamp)
-                self.event_queue.append(event)
+    def execute_event(self):
+        self.node.receive_transaction(self.transaction, self.event_created_by) 
 
-#BlockMined should look into this code
 
-class BlockMined(Event):
-    def __init__(self, event_created_by, node_id, event_type, timestamp):
-        super().__init__(event_created_by, node_id, "BlockMined", timestamp)
+class BlockGenerate(Event):
+    def __init__(self, event_created_by, node, node_id, created_at, run_at):
+        super().__init__(event_created_by, node, node_id, event_type='BlockGenerate', timestamp=run_at)
+
+    def __repr__(self):
+        return f"B Gen: on={self.node_id}"
+
+    def run(self):
+        me = self.node
+
+        for x in me.receivedStamps:
+            if x > self.timestamp:
+                return
+
+        # Traverse the longest chain and find all transactions that've been spent
+        longest_chain = me.longest_chain()
+        longest_block = longest_chain[0]
+
+        spent = set()
+
+        for block in longest_chain:
+            spent |= set(block.transactions.values())
+
+        # Unspent = Seen - Spent
+        unspent_txns = set(me.transaction_queue) - spent
+        unspent_txns = {t.transaction_id: t for t in unspent_txns}
+
+        # Only create a block if I have transactions to send
+        if not unspent_txns:
+            return
+
+        # Generate a new block
+        new_block = Block(
+            block_id=me.block_id,
+            created_by=me.node_id,
+            mining_time=self.timestamp,
+            prev_block_id=longest_block.block_id,
+            length_of_chain=len(longest_block) + 1
+        )
+        new_block.transactions.update(unspent_txns)
+
+        me.block_id += 1
+
+        # Add the block to my chain
+        me.blocks[new_block.block_id] = new_block
         
-    def block_mined(self, mining_time):
-        # Check if this is still the longest chain
-        if self.is_longest_chain():
-            # Add the newly mined block to the longest chain of the blockchain
-            new_block = self.create_block(mining_time)
-            self.blocks[new_block.block_id] = new_block
+        me.coins += 50
 
-            # At each peer, schedule a blockRcv event with a randomly sampled delay
-            for neighbour in self.neighbours:
+        # Generate BlockReceive events for all my peers
+        for peer_id in me.neighbours:
+            # Except who created the thing!
+            if peer_id != me.node_id:
                 delay = random.uniform(0, 10)  # Adjust the range of delay as needed
-                scheduled_timestamp = self.Ttx + delay
-                event = Event(event_created_by=self.node_id, node_id=neighbour, event_type='blockRcv', timestamp=scheduled_timestamp)
-                self.event_queue.append(event)
-
-            # Remove the transaction added to the block from the transaction queue
-            # (This part depends on your specific implementation of the transaction queue)
-            # Assuming you have a method remove_transaction_from_queue(transaction) in Node class
-            if new_block.block_id in self.blocks:
-                transactions_in_block = self.get_transactions_from_block(new_block)
-                for transaction in transactions_in_block:
-                    self.remove_transaction_from_queue(transaction)
-
-            # Continue mining
-            self.continue_mining()
-
-    def continue_mining(self):
-        # Sample random subsets (select transactions with max mining reward) from the transaction pool
-        # to form new blocks until a valid block is formed.
-        # Sample mining time from an exponential distribution with mean T/hk and where I is the average interarrival time.
-        mining_reward = self.calculate_mining_reward()
-        selected_transactions = self.select_transactions_with_max_reward(mining_reward)
-        new_block = self.form_block(selected_transactions)
-
-        # Sample mining time from an exponential distribution
-        mining_time = np.random.exponential(scale=1.0)  # Adjust the scale parameter as needed
-
-        # Schedule a block-mined event with the mining time
-        scheduled_timestamp = self.Ttx + mining_time
-        event = Event(event_created_by=self.node_id, node_id=self.node_id, event_type='BlockMined', timestamp=scheduled_timestamp)
-        self.event_queue.append(event)
-
-    def is_longest_chain(self):
-        # Implement your logic to check if this is still the longest chain
-        # (This part depends on how you determine the longest chain)
-        return True
-
-    def create_block(self, mining_time):
-        # Implement your logic to create a new block
-        # (This part depends on your specific implementation)
-        return Block(block_id=len(self.blocks) + 1,
-                     created_by=self.node_id,
-                     mining_time=mining_time,
-                     prev_block_id=max(self.blocks.keys(), default=0),
-                     length_of_chain=self.blocks[max(self.blocks.keys(), default=0)].length_of_chain + 1)
-
-    def calculate_mining_reward(self):
-        # Implement your logic to calculate the mining reward
-        # (This part depends on your specific implementation)
-        return 1.0  # Placeholder value, adjust as needed
-
-    def select_transactions_with_max_reward(self, mining_reward):
-        # Implement your logic to select transactions with max mining reward
-        # (This part depends on your specific implementation)
-        return []
-
-    def form_block(self, selected_transactions):
-        # Implement your logic to form a new block from selected transactions
-        # (This part depends on your specific implementation)
-        return Block(block_id=len(self.blocks) + 1,
-                     created_by=self.node_id,
-                     mining_time=0,  # Placeholder value, adjust as needed
-                     prev_block_id=max(self.blocks.keys(), default=0),
-                     length_of_chain=self.blocks[max(self.blocks.keys(), default=0)].length_of_chain + 1)
-
-    def get_transactions_from_block(self, block):
-        # Implement your logic to get transactions from a block
-        # (This part depends on your specific implementation)
-        return []
-
-    def remove_transaction_from_queue(self, transaction):
-        # Implement your logic to remove a transaction from the transaction queue
-        # (This part depends on your specific implementation)
-        pass
+                event = BlockReceive(
+                    event_created_by=me.node_id,
+                    node=me,
+                    node_id=peer_id,
+                    block=new_block,
+                    created_at=self.timestamp,
+                    run_at=self.timestamp + delay
+                )
+                me.event_queue.append(event)
 
 
+class BlockReceive(Event):
+    def __init__(self, event_created_by, node, node_id, block, created_at, run_at):
+        super().__init__(event_created_by, node, node_id, event_type='BlockReceive', timestamp=run_at)
 
+        # The block we've received
+        self.block = block
 
-#BlockRecieved
-                
+    def __repr__(self):
+        return f"B Rcv: on={self.node_id} | {repr(self.block)}"
+
+    def run(self):
+        # The node that this event is running on
+        me = self.node
+
+        # Check if this node has already seen this block before
+        if self.block.block_id in me.blocks:
+            return
+
+        # Find previous block to the one that we've just received
+        prev_block = me.blocks.get(self.block.prev_block_id)
+        if prev_block is None:
+            return
+
+        # Add transactions in this block to my list of seen ones
+        me.transaction_queue.extend(self.block.transactions)
+
+        # Make a copy of the block to increase the length
+        new_block = Block(
+            block_id=self.block.block_id,
+            created_by=self.block.created_by,
+            mining_time=self.block.mining_time,
+            prev_block_id=prev_block.block_id,
+            length_of_chain=len(self.block) + 1
+        )
+
+        # Add the block to my chain
+        me.blocks[new_block.block_id] = new_block
+        me.receivedStamps.append(new_block.timestamp)
+
+        # Generate BlockReceive events for all my peers
+        for peer in me.neighbours:
+            # Except for who created it
+            if peer.node_id != self.block.created_by:
+                delay = random.uniform(0, 10)  # Adjust the range of delay as needed
+                event = BlockReceive(
+                    event_created_by=me.node_id,
+                    node=me,
+                    node_id=peer_id,
+                    block=new_block,
+                    created_at=self.timestamp,
+                    run_at=self.timestamp + delay
+                )
+                me.event_queue.append(event)
+
+        # Create a new block generation event for me
+        event = BlockGenerate(
+            event_created_by=me.node_id,
+            node=me,
+            node_id=me.node_id,
+            created_at=self.timestamp,
+            run_at=self.timestamp + me.block_delay()  # You might need to define this method in your Node class
+        )
+        me.event_queue.append(event)          
 
 
 
