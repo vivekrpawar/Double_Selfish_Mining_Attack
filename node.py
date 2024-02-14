@@ -5,7 +5,7 @@ import random, time, threading
 import numpy.random as nprandom
 from block import Block
 import events
-
+from priority_queue import PriorityQueue
 class Node:
     def __init__(self, node_id, coins ,hashing_power, is_slow, is_slow_cpu, exp_dist_mean, event_queue):
         # Data members
@@ -27,6 +27,10 @@ class Node:
         #self.time_of_arrival_list = []  
         self.receivedStamps=[]
         self.prev_block_id = 0 
+        self.first_block_time_stamp = 0
+        self.last_block_time_stamp = 0
+        self.block_queue = PriorityQueue()
+        self.forked_blocks = []
 
     def __str__(self):
         return f"Node ID: {self.node_id}\nHashing Power: {self.hashing_power}\nIs Slow: {self.is_slow}\nIs slow CPU: {self.is_slow_cpu}\nCoins: {self.coins}\nNeighbours: {self.neighbours}\nAll Nodes: {self.all_nodes}\n"
@@ -44,7 +48,7 @@ class Node:
         receiver_id.coins = receiver_id.coins + transaction_amount
 
         # Create the transaction and add it to the transaction queue
-        transaction = transaction.Transaction(
+        new_transaction = transaction.Transaction(
             transaction_id = str(int(time.time()))+str(self.node_id),
             coins=transaction_amount,
             sender_id=self.node_id,
@@ -52,7 +56,7 @@ class Node:
             timestamp = int(time.time())    
         )
 
-        self.transaction_queue.append(transaction)
+        self.transaction_queue.append(new_transaction)
 
         # Schedule a TxnReceived event at each peer/neighbour, at the current time + network delay
         for neighbour in self.neighbours:
@@ -64,7 +68,7 @@ class Node:
                 node_id=neighbour.node_id,
                 timestamp=scheduled_timestamp
             )
-            self.event_queue.append(event)
+            self.event_queue.push(event, event.timestamp)
 
     def receive_transaction(self, transaction, event_created_by):
         # Check if the transaction has already been received
@@ -83,7 +87,7 @@ class Node:
                         node_id=neighbour.node_id,
                         timestamp=scheduled_timestamp
                     )
-                    self.event_queue.append(event)
+                    self.event_queue.push(event, event.timestamp)
     
     def generate_block(self):
         self.transaction_queue.sort()
@@ -94,32 +98,93 @@ class Node:
         for i in range(min(1000, len(unspent_transactions))):
             transctions_in_block.append(unspent_transactions[i])
         prev_longest_chain = self.get_longest_chain()
-        mining_time = self.get_mining_time(prev_longest_chain)
-        time.sleep(mining_time)
-        curr_longest_chain = self.get_longest_chain()
-        if(curr_longest_chain != prev_longest_chain):
-            return
+        mining_time = self.get_mining_time(prev_longest_chain) 
         # Create the coinbase transaction and add it to the transaction queue
-        transaction = transaction.Transaction(
+        coinbase_transaction = transaction.Transaction(
             transaction_id=str(int(time.time()))+str(self.node_id),
             coins=50,
             sender_id=0,
             receiver_id=self.node_id,
-            timestamp = int(time.time())
+            timestamp = time.time()
         )
-        transctions_in_block.add(0, transaction)
+        transctions_in_block.add(0, coinbase_transaction)
         block = block.Block(
-            block_id = str(int(time.time()))+str(self.node_id),
-            created_by = self.node_id,
-            mining_time = mining_time,
-            prev_block_id = self.prev_block_id,
-            transactions = transctions_in_block,
-            length_of_chain = prev_longest_chain+1,
-            timestamp = int(time.time())
-        )
-        block[self.prev_block_id] = block
-        self.prev_block_id = block.block_id
+                block_id = str(int(time.time()))+str(self.node_id),
+                created_by = self.node_id,
+                mining_time = mining_time,
+                prev_block_id = self.prev_block_id,
+                transactions = transctions_in_block,
+                length_of_chain = prev_longest_chain+1,
+                timestamp = time.time()
+            )
+        
+        current_time = time.time()
+        event  = events.BlockMined(self.node_id, self, self.node_id, current_time+mining_time, block)
+        self.event_queue.push(event, event.timestamp)
 
+
+    def mined_block(self, block):
+        curr_longest_chain = self.get_longest_chain()
+        prev_longest_chain = len(block)
+        if(curr_longest_chain == prev_longest_chain):
+            block[self.prev_block_id] = block
+            self.prev_block_id = block.block_id 
+            for neighbour in self.neighbours:
+                delay = self.get_latency("block", neighbour.is_slow_cpu, neighbour.node_id)
+                scheduled_timestamp = time.time() + delay  # Adjust the range as needed
+                event = events.BlockReceived(
+                    event_created_by=self.node_id,
+                    node=neighbour,
+                    node_id=neighbour.node_id,
+                    timestamp=scheduled_timestamp,
+                    block = block
+                )
+                self.event_queue.push(event, event.timestamp)
+        current_time = time.time()
+        event  = events.BlockGenerate(self.node_id, self, self.node_id, current_time)
+        self.event_queue.push(event) 
+
+    def receive_block(self, block):
+        self.block_queue.push(block, block.timestamp)
+        while self.block_queue.peek().prev_block_id in block.keys():
+            top_block = self.block_queue.pop()
+            prev_chain_len = len(self.blocks[self.prev_block_id]) # Chain length before adding block
+            if(self.prev_block_id == 0):
+                # The chain is empty now the received block is first block to get added into the blockchain
+                self.first_block_time_stamp = time.time() # Record the time at which first block is received
+            self.last_block_time_stamp = time.time() # Record the time at which last block is received 
+
+            if(top_block.prev_block_id == self.prev_block_id):
+                # This means that the block will simply extend the current blockchain
+                self.blocks[top_block.block_id] = top_block
+                self.prev_block_id = top_block.block_id
+
+            elif top_block.prev_block_id in block.keys():
+                # This means that there is fork in the blokchain
+
+                block[top_block.block_id] = top_block # First add block into the chain
+                top_block_len = len(top_block) # Length of chain containing top_block (Forked chain)
+                prev_block_len = len(block[self.prev_block_id]) # Length of chain where the node is pointing  
+
+                if(top_block_len == prev_block_len):
+                    pass
+                elif(top_block_len < prev_block_len):
+                    # Orphan the chain containing top_block
+                    pass
+                elif(top_block_len > prev_block_len):
+                    # Orphan the chain containing prev_block
+                    self.prev_block_id = top_block.block_id
+        
+        curr_chain_len = len(self.blocks[prev_block_len]) # Chain length after adding the block
+        # Wait for the 6 confirmations before addign the mining reward to current coins
+        if(curr_chain_len > prev_chain_len and curr_chain_len > 7) :
+            curr_block_id = self.prev_block_id
+            for i in range(6):
+                curr_block_id = self.blocks[curr_block_id].prev_block_id
+            if self.blocks[curr_block_id] == self.node_id:
+                self.coins += 50
+
+        # Now blockcast the received block to neighbours
         for neighbour in self.neighbours:
             delay = self.get_latency("block", neighbour.is_slow_cpu, neighbour.node_id)
             scheduled_timestamp = time.time() + delay  # Adjust the range as needed
@@ -127,13 +192,11 @@ class Node:
                 event_created_by=self.node_id,
                 node=neighbour,
                 node_id=neighbour.node_id,
-                timestamp=scheduled_timestamp
+                timestamp=scheduled_timestamp,
+                block = block
             )
-            self.event_queue.append(event)
+            self.event_queue.push(event, event.timestamp)
         
-    def received_block(self):
-        
-
     def get_spent_transactions(self):
         curr_node = self.prev_node_id
         spent_transaction = {}
@@ -143,7 +206,7 @@ class Node:
         return spent_transaction
 
     def get_mining_time(self, prev_longest_chain):
-        avg_interarrival_time = (self.last_block_time_stamp - self.fist_block_time_stamp)/prev_longest_chain
+        avg_interarrival_time = (self.last_block_time_stamp - self.first_block_time_stamp)/prev_longest_chain
         hashing_power = 10 if (self.is_slow_cpu) else  1
         mining_time = nprandom.exponential(avg_interarrival_time/hashing_power)
         return mining_time
@@ -177,12 +240,10 @@ class Node:
 
         return chain
 
-
     def miner(self):
         # Call node up method  to start the node
         print("miner is mining.")
     
-
     def master_routine(self):
         # Master method where all the routines will be executed
         transaction_generator_routine = threading.Thread(target=self.transaction_generator)
@@ -228,11 +289,6 @@ class Node:
         latency += self.all_node[neighbour_id]
 
         return latency
-    # Mining routine
-
-    
-    # Routine to boadcast 
-    
 
     
 

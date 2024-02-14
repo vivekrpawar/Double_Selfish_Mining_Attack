@@ -36,6 +36,8 @@ def generate_unique_id():
     unique_id = f"{timestamp:x}"
     return unique_id+str(random_number)
 
+
+
 # Function to generate all peers of the node
 def generate_nodes(number_of_peers, fract_of_slow, fract_of_slow_cpu, exp_dist_mean):
 
@@ -105,9 +107,12 @@ fract_of_slow_cpu = float(sys.argv[3])
 mean_exp_dist = float(sys.argv[4])
 simulation_time = int(sys.argv[5])
 # Generate all nodes with respective peers
-all_nodes = generate_nodes(number_of_peers, fract_of_slow, fract_of_slow_cpu, mean_exp_dist) \
+all_nodes = generate_nodes(number_of_peers, fract_of_slow, fract_of_slow_cpu, mean_exp_dist)
 
-sim = simulator.simulator(all_nodes)
+sim = simulator.simulator(number_of_peers, fract_of_slow, fract_of_slow_cpu, mean_exp_dist)
+sim.run_simulator()
+time.sleep(simulation_time)
+sim.stop_simulator()
 # threads = []
 # all_peers = all_nodes.values()
 # for peer in all_peers:

@@ -3,6 +3,7 @@ import events
 import numpy as np
 import numpy.random as nprandom
 import node # Import node class to create network 
+from priority_queue import PriorityQueue
 
 class simulator():
     def __init__(self, number_of_peers, fract_of_slow, fract_of_low_cpu, exp_dist_mean):
@@ -11,7 +12,7 @@ class simulator():
         self.fract_of_low_cpu = self.fract_of_low_cpu
         self.exp_dist_mean = exp_dist_mean
         self.simulation_running = True
-        self.event_queue = []
+        self.event_queue = PriorityQueue()
         self.all_nodes = self.generate_nodes(self.number_of_peers, self.fract_of_slow, self.fract_of_low_cpu, self.exp_dist_mean, self.event_queue)
     # Function to generate all peers of the node
     def generate_nodes(self, number_of_peers, fract_of_slow, fract_of_slow_cpu, exp_dist_mean, event_queue):
@@ -34,9 +35,9 @@ class simulator():
         is_slow_cpu = [False]*number_of_peers
 
         # Set first some values in the list to true
-        for i in range(int(fract_of_slow * n)):
+        for i in range(int(fract_of_slow * number_of_peers)):
             is_slow[i] = True
-        for i in range(int(fract_of_slow_cpu * n)):
+        for i in range(int(fract_of_slow_cpu * number_of_peers)):
             is_slow_cpu[i] = True
 
         # Suffle the list to assign value randomly 
@@ -82,38 +83,35 @@ class simulator():
         return unique_id+str(random_number)
 
     def transaction_generator(self):
-        trasanction_generated_node = self.all_nodes['p'+str(np.random(1, self.number_of_peers+1))]
-        #self, event_created_by, node, node_id, timestamp
+        # While simulation is on generate the transactions
         while(self.simulation_running):
-            current_time = int(time.time())
+            trasanction_generated_node = self.all_nodes['p'+str(np.random(1, self.number_of_peers+1))]
+            current_time = time.time()
             event  = events.TxnGenerated(trasanction_generated_node.node_id, trasanction_generated_node, trasanction_generated_node.node_id, current_time)
-            self.event_queue.append(event)
+            self.event_queue.push(event, event.timestamp)
             scale = 1/self.exp_dist_mean
             waiting_time = np.random.exponential(scale)
             time.sleep(waiting_time)
     
-    # Method to get message latency
-    def get_latency(self, message_type, is_sender_slow, is_receiver_slow, propagation_delay):
-        latency = 0
-        message_size = 0
-        if(message_type == 'transaction'):
-            message_size += 8*10**3
-        elif(message_type == 'block'):
-            message_size += 8*10**6
-        
-        link_speed = 0
-        if not is_sender_slow and not is_receiver_slow:
-            link_speed = 100*10**8
-        else:
-            link_speed = 5*10**8
-        
-        # Transmission delay
-        latency += message_size/link_speed
+    def block_generator(self):
+        # Schedule block generated event on all the node at start of simulation
+        for i in self.all_nodes.keys():
+            block_generator_node = self.all_nodes[i]
+            current_time = time.time()
+            #self, event_created_by, node, node_id, created_at, run_at
+            event  = events.BlockGenerate(block_generator_node.node_id, block_generator_node, block_generator_node.node_id, current_time)
+            self.event_queue.push(event, event.timestamp)
+    
+    def run_simulator(self, simulation_time):
+        # Run the simulator while simulation is running
+        start_time = time.time()
+        curr_time = time.time() 
+        while(curr_time <= start_time+simulation_time):
+            # Check if there is any event in event queue
+            # If the queue is empty then weight for the event
+            if not self.event_queue.is_empty and self.event_queue.peek().timestamp <= time.time(): 
+                # Pop the top event and execute
+                event = self.event_queue.pop()
+                event.execute_event()
+            curr_time = time.time()
 
-        # Queing delay
-        latency += nprandom.exponential(96*1e3/link_speed)
-
-        # Propagation delay
-        latency += propagation_delay
-
-        return latency
