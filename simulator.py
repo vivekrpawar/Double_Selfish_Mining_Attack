@@ -4,7 +4,7 @@ import numpy as np
 import numpy.random as nprandom
 import node # Import node class to create network 
 from priority_queue import PriorityQueue
-
+import graph_utils
 class simulator():
     def __init__(self, number_of_peers, fract_of_slow, fract_of_low_cpu, exp_dist_mean):
         self.number_of_peers = number_of_peers
@@ -53,26 +53,27 @@ class simulator():
             peers_dict['p'+str(i)] = node.Node(node_id, coins, hashing_power, is_slow[i], is_slow_cpu[i], exp_dist_mean, event_queue)
             neighbours_dict['p'+str(i)] = []
         
-        # Generate neighbours
-        for i in peers_dict.keys():
+        while (not graph_utils.is_connected(neighbours_dict)):
+            # Generate neighbours
+            for i in peers_dict.keys():
 
-            # Generate a random neighbours from the dictionary keys
-            no_of_neighbours = random.randint(3, 6)
-            neighbours = random.sample([neighbour for neighbour in peers_dict.keys() if neighbour != i], no_of_neighbours)
-            
-            for neighbour in neighbours:
-                if peers_dict[i] not in neighbours_dict[neighbour] and len(neighbours_dict[neighbour]) < 6 and peers_dict[neighbour] not in neighbours_dict[i] and len(neighbours_dict[i]) < 6:
-                    
-                    # Get propagation delay between the two nodes
-                    propagation_delay = random.randint(10, 501)
-                    neighbours_dict[neighbour].append(peers_dict[i]) 
-                    neighbours_dict[i].append(peers_dict[neighbour])
-                    all_nodes[peers_dict[neighbour].node_id] = propagation_delay
-                    all_nodes[peers_dict[i].node_id] = propagation_delay
-        # Add neighbours to each node        
-        for i in peers_dict.keys():
-            peers_dict[i].add_neighbours(neighbours_dict[i])
-            peers_dict[i].add_allNodes(all_nodes)
+                # Generate a random neighbours from the dictionary keys
+                no_of_neighbours = random.randint(3, 6)
+                neighbours = random.sample([neighbour for neighbour in peers_dict.keys() if neighbour != i], no_of_neighbours)
+                
+                for neighbour in neighbours:
+                    if peers_dict[i] not in neighbours_dict[neighbour] and len(neighbours_dict[neighbour]) < 6 and peers_dict[neighbour] not in neighbours_dict[i] and len(neighbours_dict[i]) < 6:
+                        
+                        # Get propagation delay between the two nodes
+                        propagation_delay = random.randint(10, 501)
+                        neighbours_dict[neighbour].append(peers_dict[i]) 
+                        neighbours_dict[i].append(peers_dict[neighbour])
+                        all_nodes[peers_dict[neighbour].node_id] = propagation_delay
+                        all_nodes[peers_dict[i].node_id] = propagation_delay
+            # Add neighbours to each node        
+            for i in peers_dict.keys():
+                peers_dict[i].add_neighbours(neighbours_dict[i])
+                peers_dict[i].add_allNodes(all_nodes)
         return peers_dict
 
     def generate_unique_id(self):
@@ -82,16 +83,12 @@ class simulator():
         unique_id = f"{timestamp:x}"
         return unique_id+str(random_number)
 
-    def transaction_generator(self):
-        # While simulation is on generate the transactions
-        while(self.simulation_running):
-            trasanction_generated_node = self.all_nodes['p'+str(np.random(1, self.number_of_peers+1))]
-            current_time = time.time()
-            event  = events.TxnGenerated(trasanction_generated_node.node_id, trasanction_generated_node, trasanction_generated_node.node_id, current_time)
-            self.event_queue.push(event, event.timestamp)
-            scale = 1/self.exp_dist_mean
-            waiting_time = np.random.exponential(scale)
-            time.sleep(waiting_time)
+    def transaction_generate(self): 
+        # Generate new transaction
+        trasanction_generated_node = self.all_nodes['p'+str(np.random(1, self.number_of_peers+1))]
+        current_time = time.time()
+        event  = events.TxnGenerated(trasanction_generated_node.node_id, trasanction_generated_node, trasanction_generated_node.node_id, current_time)
+        self.event_queue.push(event, event.timestamp) 
     
     def block_generator(self):
         # Schedule block generated event on all the node at start of simulation
@@ -104,9 +101,25 @@ class simulator():
     
     def run_simulator(self, simulation_time):
         # Run the simulator while simulation is running
-        start_time = time.time()
-        curr_time = time.time() 
+        curr_time = time.time()
+        start_time = curr_time
+        prev_transaction_time = curr_time
+        scale = 1/self.exp_dist_mean
+        waiting_time = np.random.exponential(scale)
+        simulation_started = False
         while(curr_time <= start_time+simulation_time):
+            # Generate transaction arter interarival of waiting time
+            if prev_transaction_time + waiting_time <= curr_time:
+                # Generate transaction after waiting for some time
+                self.transaction_generate()
+                # Wait for the waiting time before generating next transaction
+                prev_transaction_time = curr_time
+                scale = 1/self.exp_dist_mean
+                waiting_time = np.random.exponential(scale)
+                # Start generationg block after generating first transaction
+                if not simulation_started:
+                    self.block_generator()
+                    simulation_started = True
             # Check if there is any event in event queue
             # If the queue is empty then weight for the event
             if not self.event_queue.is_empty and self.event_queue.peek().timestamp <= time.time(): 

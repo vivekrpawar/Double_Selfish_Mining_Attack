@@ -22,9 +22,8 @@ class Node:
             0: Block(block_id=0,created_by=self.node_id,mining_time=0,prev_block_id = -1, 
                     length_of_chain=0)
         }
-        self.event_queue = event_queue
-        self.Ttx = random.expovariate(1 / 60)  # Thik kar Assuming Ttx is set to 60 for example
-        #self.time_of_arrival_list = []  
+        self.event_queue = event_queue 
+        # self.time_of_block_arrival_list = []
         self.receivedStamps=[]
         self.prev_block_id = 0 
         self.first_block_time_stamp = 0
@@ -35,7 +34,6 @@ class Node:
     def __str__(self):
         return f"Node ID: {self.node_id}\nHashing Power: {self.hashing_power}\nIs Slow: {self.is_slow}\nIs slow CPU: {self.is_slow_cpu}\nCoins: {self.coins}\nNeighbours: {self.neighbours}\nAll Nodes: {self.all_nodes}\n"
 
-    
     def generate_transaction(self):
 
         # Sample a transaction amount and a receiver uniformly at random
@@ -122,12 +120,11 @@ class Node:
         event  = events.BlockMined(self.node_id, self, self.node_id, current_time+mining_time, block)
         self.event_queue.push(event, event.timestamp)
 
-
     def mined_block(self, block):
         curr_longest_chain = self.get_longest_chain()
         prev_longest_chain = len(block)
         if(curr_longest_chain == prev_longest_chain):
-            block[self.prev_block_id] = block
+            self.blocks[self.prev_block_id] = block
             self.prev_block_id = block.block_id 
             for neighbour in self.neighbours:
                 delay = self.get_latency("block", neighbour.is_slow_cpu, neighbour.node_id)
@@ -147,7 +144,12 @@ class Node:
     def receive_block(self, block):
         self.block_queue.push(block, block.timestamp)
         while self.block_queue.peek().prev_block_id in block.keys():
+            # The block at the top of queue will get added to chain
             top_block = self.block_queue.pop()
+
+            # Check if the top_block is valid or not 
+            if not self.is_valid(top_block):
+                continue
             prev_chain_len = len(self.blocks[self.prev_block_id]) # Chain length before adding block
             if(self.prev_block_id == 0):
                 # The chain is empty now the received block is first block to get added into the blockchain
@@ -162,9 +164,9 @@ class Node:
             elif top_block.prev_block_id in block.keys():
                 # This means that there is fork in the blokchain
 
-                block[top_block.block_id] = top_block # First add block into the chain
+                self.blocks[top_block.block_id] = top_block # First add block into the chain
                 top_block_len = len(top_block) # Length of chain containing top_block (Forked chain)
-                prev_block_len = len(block[self.prev_block_id]) # Length of chain where the node is pointing  
+                prev_block_len = len(self.blocks[self.prev_block_id]) # Length of chain where the node is pointing  
 
                 if(top_block_len == prev_block_len):
                     pass
@@ -202,7 +204,7 @@ class Node:
         spent_transaction = {}
         while curr_node != 0:
             spent_transaction.update(self.blocks[curr_node])
-            curr_node = self.block[curr_node].get_prev_block
+            curr_node = self.blocks[curr_node].get_prev_block
         return spent_transaction
 
     def get_mining_time(self, prev_longest_chain):
@@ -240,26 +242,18 @@ class Node:
 
         return chain
 
-    def miner(self):
-        # Call node up method  to start the node
-        print("miner is mining.")
-    
-    def master_routine(self):
-        # Master method where all the routines will be executed
-        transaction_generator_routine = threading.Thread(target=self.transaction_generator)
-        miner_routine = threading.Thread(target=self.miner)
-
-        transaction_generator_routine.start()
-        miner_routine.start()
-
-        transaction_generator_routine.join()
-        miner_routine.join()
-        print()
-
     # Method to set the neighbours of current node
     def add_neighbours(self, neighbours):
         self.neighbours = neighbours 
 
+    # Function to check if block is valid or not
+    def is_valid(self, block):
+        transaction = block.transactions
+        for t in transaction:
+            if t.coins < 0:
+                return False
+        return True
+    
     # Method to save all node_ids in the blockchain network into the current node
     def add_allNodes(self, all_nodes):
         self.all_nodes = all_nodes
@@ -289,8 +283,6 @@ class Node:
         latency += self.all_node[neighbour_id]
 
         return latency
-
-    
 
 
 
