@@ -15,5 +15,5 @@ class PriorityQueue:
     def peek(self):
         return self.queue[0][1]
 
-    def is_empty(self):
+    def is_empty(self): 
         return len(self.queue) == 0

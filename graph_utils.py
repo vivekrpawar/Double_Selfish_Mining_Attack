@@ -4,17 +4,18 @@ def is_connected(peers_dict):
     num_of_peers = len(peers_dict)
     queue = []
     vis = {}
-    root = peers_dict.keys()[0]
+    root = list(peers_dict.keys())[0]
     queue.append(root)
     vis[root] = True
     count = 1
     while len(queue) > 0:
         curr = queue[0]
-        queue.remove(0)
+        queue.pop(0) 
         for i in peers_dict[curr]:
-            if i.node_id not in peers_dict.keys():
+            if i.node_id not in vis.keys():
                 queue.append(i.node_id)
                 count += 1
+                vis[i.node_id] = True
     return count == num_of_peers
 
 
