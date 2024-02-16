@@ -1,10 +1,10 @@
 # 4 events TxnGenerated, TransactionReceive, BlockGenerate, BlockReceive
-from block import Block
-from transaction import trasactions
-from simulator import simulator
-from node import Node
-import random
-import numpy as np
+# from block import Block
+# from transaction import Trasaction
+# from simulator import simulator
+# from node import Node
+# import random
+# import numpy as np
 
 class Event:
     def __init__(self, event_created_by ,node, node_id, timestamp):
@@ -61,8 +61,9 @@ class BlockGenerate(Event):
         self.node.generate_block()
 
 class BlockMined(Event):
-    def __init__(self, event_created_by, node, node_id, timestamp):
+    def __init__(self, event_created_by, node, node_id, timestamp, block):
         super().__init__(event_created_by, node, node_id, timestamp)
+        self.block = block
 
     def __str__(self):
         return f"{self.node_id} has generated a Block \n"
