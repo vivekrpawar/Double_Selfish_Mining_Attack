@@ -46,7 +46,6 @@ class TxnReceived(Event):
     def execute_event(self):
         self.node.receive_transaction(self.transaction, self.event_created_by) 
 
-
 class BlockGenerate(Event):
     def __init__(self, event_created_by, node, node_id, timestamp): 
         super().__init__(event_created_by, node, node_id, timestamp)

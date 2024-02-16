@@ -110,8 +110,7 @@ simulation_time = int(sys.argv[5])
 all_nodes = generate_nodes(number_of_peers, fract_of_slow, fract_of_slow_cpu, mean_exp_dist)
 
 sim = simulator.simulator(number_of_peers, fract_of_slow, fract_of_slow_cpu, mean_exp_dist)
-sim.run_simulator()
-time.sleep(simulation_time)
+sim.run_simulator(simulation_time) 
 sim.stop_simulator()
 # threads = []
 # all_peers = all_nodes.values()
