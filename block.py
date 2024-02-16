@@ -1,11 +1,12 @@
 class Block:
-    def __init__(self, block_id, created_by, mining_time, prev_block_id, length_of_chain):
+    def __init__(self, block_id, created_by, mining_time, prev_block_id, transactions, length_of_chain, timestamp):
         self.block_id = block_id
         self.created_by = created_by
         self.mining_time = mining_time
         self.prev_block_id = prev_block_id
-        self.transactions = []
+        self.transactions = transactions
         self.length_of_chain = length_of_chain  # Initialized to 1, as this is a new block
+        self.timestamp= timestamp
 
     def __str__(self):
         return f"Block ID: {self.block_id} is Created By: {self.created_by} in Mining time: {self.mining_time} which had previous block: {self.prev_block_id} \n" 
