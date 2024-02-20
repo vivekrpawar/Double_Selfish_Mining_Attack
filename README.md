@@ -45,8 +45,11 @@ This project simulates a Peer-to-Peer (P2P) Cryptocurrency Network, guided by Pr
 
 To start the simulation, run the following command in the project folder:
 
-```bash
-$ python startsimulator.py [n] [Z0] [Z1] [Ttx] [time]
-for e.g $python startsimulator.py 10 0.2 0.2 0.3 60
 
-At the end of the simulation, for each peer, Tree file at the node is created in the project folder
+$ python startsimulator.py [n] [Z0] [Z1] [Ttx] [time]
+for e.g 
+```bash
+$python startsimulator.py 10 0.2 0.2 0.3 60
+```
+
+At the end of the simulation, for each peer, a Tree file at the node is created in the project folder
