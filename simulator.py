@@ -78,7 +78,7 @@ class simulator():
                     if peers_dict[i] not in neighbours_dict[neighbour] and len(neighbours_dict[neighbour]) < 6 and peers_dict[neighbour] not in neighbours_dict[i] and len(neighbours_dict[i]) < 6:
                         
                         # Get propagation delay between the two nodes
-                        propagation_delay = random.randint(10, 501)
+                        propagation_delay = random.randint(10, 501)*0.001
                         neighbours_dict[neighbour].append(peers_dict[i]) 
                         neighbours_dict[i].append(peers_dict[neighbour])
                         all_nodes[peers_dict[neighbour].node_id] = propagation_delay
@@ -90,6 +90,10 @@ class simulator():
                 node_graph[peers_dict[i].node_id] = neighbours_dict[i]
         # print(peers_dict)
         self.peers_dict = peers_dict
+        # print(f"Number of peers: {len(peers_dict)}") 
+        # for p in peers_dict.keys():
+        #     print(peers_dict[p].node_id)
+        # graph_utils.print_graph(peers_dict)
         return peers_dict
 
     def generate_unique_id(self):
@@ -100,9 +104,7 @@ class simulator():
         return unique_id+str(random_number)
 
     def transaction_generate(self): 
-        # Generate new transaction 
-        # print(self.all_nodes)
-        print("Generating transactions!")
+        # Generate new transaction  
         trasanction_generated_node = self.all_nodes['p'+str(random.randint(0, self.number_of_peers-1))]
         current_time = time.time()
         event  = events.TxnGenerated(trasanction_generated_node.node_id, trasanction_generated_node, trasanction_generated_node.node_id, current_time)
@@ -119,7 +121,7 @@ class simulator():
     
     def run_simulator(self, simulation_time):
         # Run the simulator while simulation is running
-        print("running simulator")
+        print("---------------------------------------Simulations Started----------------------------------------------")
         curr_time = time.time()
         start_time = curr_time
         prev_transaction_time = curr_time
@@ -127,42 +129,69 @@ class simulator():
         waiting_time = np.random.exponential(scale)
         simulation_started = False
         while(curr_time <= start_time+simulation_time):
-            # Generate transaction arter interarival of waiting time
-            print(f"{prev_transaction_time + waiting_time } {curr_time}")
+            # Generate transaction arter interarival of waiting time 
             if prev_transaction_time + waiting_time <= curr_time:
                 # Generate transaction after waiting for some time
                 self.transaction_generate()
                 # Wait for the waiting time before generating next transaction
                 prev_transaction_time = curr_time
                 scale = 1/self.exp_dist_mean
-                waiting_time = np.random.exponential(scale)
+                waiting_time = np.random.exponential(scale) 
                 # Start generationg block after generating first transaction
                 if not simulation_started:
                     self.block_generator() 
                     simulation_started = True
             # Check if there is any event in event queue
-            # If the queue is empty then weight for the event
-            print(f'event_queue:\n {len(self.event_queue)} {not self.event_queue.is_empty()}')
+            # If the queue is empty then weight for the event 
             if not self.event_queue.is_empty() and self.event_queue.peek().timestamp <= time.time(): 
                 # Pop the top event and execute
-                event = self.event_queue.pop()
-                print(f"Executing events! {event}")
+                event = self.event_queue.pop() 
                 event.execute_event()
-            curr_time = time.time()
-            time.sleep(0.1)
+            curr_time = time.time() 
         print("Similation is stopped!")
         print("------------------------------------------------------------------------------------------------------")
+        total_interarrival_time = 0
+        longest_chain = set()
         for i in self.peers_dict.keys():
-            self.print_longest_chain(self.peers_dict[i])
-    
-    def print_longest_chain(self, node):
+            # self.print_longest_chain(self.peers_dict[i])
+            total_interarrival_time += self.peers_dict[i].avg_interarrival_time
+            node_mapping = self.get_block_mapping(self.peers_dict)
+            self.save_chain_tree(self.peers_dict[i], node_mapping)
+            curr_longest_chain = self.get_longest_chain(self.peers_dict[i])
+            if len(curr_longest_chain) > len(longest_chain):
+                longest_chain = curr_longest_chain
+            print(f"Interarrival time:{self.peers_dict[i].avg_interarrival_time}")
+        for i in self.peers_dict.keys():
+            total_blocks_generated = self.peers_dict[i].generated_blocks
+            block_included_in_chain = len(total_blocks_generated & longest_chain)
+            fract_of_block_in_chain = block_included_in_chain/len(longest_chain)
+            print(f"Node: is slow {self.peers_dict[i].is_slow}\n is low cpu {self.peers_dict[i].is_slow_cpu}\n Fraction of blocks in longest chain by node {i} is :{fract_of_block_in_chain}")
+        print(f'Average interarrival time: {total_interarrival_time/len(self.peers_dict)}')
+        
+    # Utility function to get the logest chain
+    def get_longest_chain(self, node):
+        longest_chain = set()
         curr_block_id = node.prev_block_id
-        print(f'longest chain length: {len(node.blocks[curr_block_id])} top block: {curr_block_id} total number of blocks: {len(node.blocks)}')
         while curr_block_id != 0:
-            print(curr_block_id)
+            longest_chain.add(curr_block_id) 
             curr_block_id = node.blocks[curr_block_id].prev_block_id
-        print(curr_block_id)
+        return longest_chain
 
+    # This function maps block id to some interpretable value 
+    def get_block_mapping(self, peers_dict):
+        count = 0
+        node_mapping = {}
+        node_mapping[-1] = -1
+        for peer in peers_dict.keys():
+            for i in peers_dict[peer].blocks.keys(): 
+                if i not in node_mapping.keys():
+                    node_mapping[i] = count
+                    count += 1
+        return node_mapping
 
+    def save_chain_tree(self, node, node_mapping):
+        with open('./blockchain_tree_csv/blockchain_tree_'+node.node_id+'.csv', 'a') as file:
+            for i in node.blocks.keys(): 
+                file.write(f'{node_mapping[i]},{node_mapping[node.blocks[i].prev_block_id]}\n')
 
 
