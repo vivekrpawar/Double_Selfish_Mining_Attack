@@ -1,4 +1,5 @@
 ./__pychache__
-./node_files__
+./node_files
 ./blockchain_tree_csv
+./experiments
 file.txt
