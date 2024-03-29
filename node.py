@@ -39,6 +39,9 @@ class Node:
         self.file_name = f"./node_files/file_{self.node_id}.txt"
         self.avg_interarrival_time = 0 # average interarrival time of all the blocks in received so far.
 
+        # Count of number of block mined by the node
+        self.block_mined_count = 0
+    
     def __str__(self):
         return f"Node ID: {self.node_id}\nHashing Power: {self.hashing_power}\nIs Slow: {self.is_slow}\nIs slow CPU: {self.is_slow_cpu}\nCoins: {self.coins}\nNeighbours: {self.neighbours}\nAll Nodes: {self.all_nodes}\n"
 
@@ -164,12 +167,13 @@ class Node:
             event  = events.BlockGenerate(self.node_id, self, self.node_id, current_time)
             self.event_queue.push(event, event.timestamp) 
             self.generated_blocks.add(block.block_id)
+            self.block_mined_count += 1
             with open(self.file_name, 'a') as file:
                 file.write("Block: "+str(block.block_id)+" mined by= "+str(self.node_id)+" at time: "+str(time.time())+".") 
         else: 
             current_lead = len(self.blocks[self.prev_private_block_id])-len(self.blocks[self.prev_block_id]) # Get the longest chain length
             if(current_lead == 0) and (self.blocks[self.prev_private_block_id].prev_block_id == self.blocks[self.prev_block_id].prev_block_id):
-                # Currect lead is zero and attacker generates the block before honest miner
+                # Current lead is zero and attacker generates the block before honest miner
                 # Then node adds the block in chain and broadcast the generated block
                 self.blocks[block.block_id] = block
                 self.prev_private_block_id = block.block_id 
@@ -187,10 +191,12 @@ class Node:
                     )
                     self.event_queue.push(event, event.timestamp)  
                 self.sent_blocks.add(block.block_id)
+                self.block_mined_count += 1
             else:
                 self.blocks[block.block_id] = block
                 self.prev_private_block_id = block.block_id 
                 self.private_chain.append(block)
+                self.block_mined_count += 1
             
             # Start generating new block on the longest chain/ private chain depending upon the condition
             current_time = time.time()
@@ -241,14 +247,16 @@ class Node:
             else:
                 outstanding_block_list.append(top_block)
         for b in outstanding_block_list:
-            self.block_queue.push(b)
+            self.block_queue.push(b, b.timestamp)
         curr_chain_len = len(self.blocks[self.prev_block_id]) # Chain length after adding the block
         # Wait for the 6 confirmations before addign the mining reward to current coins
         if(curr_chain_len > prev_chain_len and curr_chain_len > 7):
             curr_block_id = self.prev_block_id
             for i in range(6):
+                if curr_block_id == -1:
+                    break
                 curr_block_id = self.blocks[curr_block_id].prev_block_id
-            if self.blocks[curr_block_id] == self.node_id:
+            if self.blocks[curr_block_id].created_by == self.node_id:
                 self.coins += 50
         if self.is_attacker:
             lvc_length = len(self.blocks[self.prev_block_id])
@@ -342,7 +350,7 @@ class Node:
             # avg_interarrival_time = 1
         avg_interarrival_time = 1
         self.avg_interarrival_time = avg_interarrival_time
-        hashing_power = 1 if (self.is_slow_cpu) else  0.1
+        hashing_power = self.hashing_power
         mining_time = nprandom.exponential(avg_interarrival_time/hashing_power)
         return mining_time
     

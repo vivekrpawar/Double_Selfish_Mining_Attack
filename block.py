@@ -13,3 +13,13 @@ class Block:
 
     def __len__(self):
         return self.length_of_chain
+    
+    # To compare to blocks basd on timestamp
+    def __lt__(self, other):
+        return self.timestamp < other.timestamp
+
+    def __gt__(self, other):
+        return self.timestamp > other.timestamp
+
+    def __eq__(self, other):
+        return self.timestamp == other.timestamp
