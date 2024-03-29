@@ -163,11 +163,11 @@ class Node:
                     )
                     self.event_queue.push(event, event.timestamp)  
                 self.sent_blocks.add(block.block_id)
+                self.block_mined_count += 1
             current_time = time.time()
             event  = events.BlockGenerate(self.node_id, self, self.node_id, current_time)
             self.event_queue.push(event, event.timestamp) 
             self.generated_blocks.add(block.block_id)
-            self.block_mined_count += 1
             with open(self.file_name, 'a') as file:
                 file.write("Block: "+str(block.block_id)+" mined by= "+str(self.node_id)+" at time: "+str(time.time())+".") 
         else: 

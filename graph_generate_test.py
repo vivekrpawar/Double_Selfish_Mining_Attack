@@ -60,7 +60,7 @@ def generate_graph(node_id, file_name):
 
     # Draw the graph
     pos = nx.spring_layout(G)  # You can choose a different layout if needed
-    nx.draw(G, pos, with_labels=True, arrowsize=2, node_size=80, node_color=node_colors, font_size=1, font_color='black', edge_color='gray', width=1)
+    nx.draw(G, pos, with_labels=True, arrowsize=2, node_size=80, node_color=node_colors, font_size=3, font_color='black', edge_color='gray', width=1)
 
     plt.title('Directed Graph with Integer Labels')
 
