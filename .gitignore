@@ -1,6 +1,6 @@
-./__pychache__
-./node_files
-./blockchain_tree_csv
-./experiments
+__pychache__/
+node_files/
+blockchain_tree_csv/
+experiments/
 file.txt
 experiment-desc.txt
