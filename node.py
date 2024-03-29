@@ -348,10 +348,12 @@ class Node:
         # avg_interarrival_time = (self.last_block_time_stamp - self.first_block_time_stamp)/len(prev_longest_chain)
         # if(avg_interarrival_time == 0):
             # avg_interarrival_time = 1
-        avg_interarrival_time = self.exp_dist_mean_block 
-        self.avg_interarrival_time = avg_interarrival_time
+        avg_interarrival_time = self.exp_dist_mean_block  
         hashing_power = self.hashing_power
-        mining_time = nprandom.exponential(avg_interarrival_time/hashing_power)
+        if hashing_power == 0:
+            mining_time = 10000
+        else:
+            mining_time = nprandom.exponential(avg_interarrival_time/hashing_power)
         return mining_time
     
     # Function to get the length of the longest chain
