@@ -314,6 +314,10 @@ class Node:
                 # If current lead is 0 and received a block then start new attack on the received block
                 self.prev_private_block_id = self.prev_block_id
                 self.private_chain.clear
+                current_time = time.time()
+                event  = events.BlockGenerate(self.node_id, self, self.node_id, current_time)
+                self.event_queue.push(event, event.timestamp) 
+                self.generated_blocks.add(block.block_id)
 
 
         # Now broadcast the received block to neighbours
