@@ -262,7 +262,7 @@ class Node:
             lvc_length = len(self.blocks[self.prev_block_id])
             private_chain_length = len(self.blocks[self.prev_private_block_id])
             # If the lead is greater than 2 and we recieved a block then release one block from the private chain
-            if(lvc_length - private_chain_length >= 2) and len(self.private_chain) > 0:
+            if(private_chain_length -lvc_length >= 2) and len(self.private_chain) > 0:
                 block_to_release = self.private_chain.pop(0)
                 self.sent_blocks.add(block_to_release.block_id)
                 for neighbour in self.neighbours:
@@ -277,7 +277,7 @@ class Node:
                             block = block_to_release
                         )
                         self.event_queue.push(event, event.timestamp)
-            elif (lvc_length - private_chain_length == 1):
+            elif (private_chain_length -lvc_length == 1):
                 # If the lead is 2 and attacker received a block then attacker immediately releases all the blocks in private chain
                 while len(self.private_chain) > 0:
                     block_to_release = self.private_chain.pop(0)
@@ -295,7 +295,7 @@ class Node:
                             )
                             self.event_queue.push(event, event.timestamp)
                 self.prev_block_id = self.prev_private_block_id
-            elif (lvc_length - private_chain_length == 0) and len(self.private_chain) > 0:
+            elif (private_chain_length -lvc_length == 0) and len(self.private_chain) > 0:
                 block_to_release = self.private_chain.pop(0)
                 self.sent_blocks.add(block_to_release.block_id)
                 for neighbour in self.neighbours:
@@ -310,7 +310,7 @@ class Node:
                             block = block_to_release
                         )
                         self.event_queue.push(event, event.timestamp)
-            elif (lvc_length - private_chain_length == -1):
+            elif (private_chain_length -lvc_length == -1):
                 # If current lead is 0 and received a block then start new attack on the received block
                 self.prev_private_block_id = self.prev_block_id
                 self.private_chain.clear
