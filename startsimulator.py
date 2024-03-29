@@ -4,9 +4,9 @@ import simulator
 
 n = len(sys.argv)
 # If number of arguments is less then promt user to enter correct number of arguments. 
-if n != 7 :
+if n != 8:
     print("Invalid arguments!")
-    print("Usage: simulatory.py <Number of peers> <Fraction of low cpu peers> <Mean of exponential distribution for interarrival time> <Simulation time> <Hashing Power of adversary 1> <Hashing power of adversary 2>")
+    print("Usage: simulatory.py <Number of peers> <Fraction of low cpu peers> <Mean of exponential distribution txn> <Mean of exponential distribution block> <Simulation time> <Hashing Power of adversary 1> <Hashing power of adversary 2>")
     exit()
 else:
     if  not sys.argv[1].isdigit():
@@ -21,10 +21,13 @@ else:
     if not sys.argv[3].replace('.', '').isdigit():
         print("Mean of exponential distribution for Inter-arrival time should be numeric value")
         exit()
-    if not sys.argv[4].isdigit() :
+    if not sys.argv[4].replace('.', '').isdigit():
+        print("Mean of exponential distribution for block generation should be numeric value")
+        exit()
+    if not sys.argv[5].isdigit() :
         print("Simulation time must be positive integer")
         exit()
-    if not sys.argv[5].replace('.','').isdigit() or (float(sys.argv[5]) < 0 and float(sys.argv[5])) > 1:
+    if not sys.argv[6].replace('.','').isdigit() or (float(sys.argv[5]) < 0 and float(sys.argv[5])) > 1:
         print("Hashing power must be between 0 to 1")
         exit()
     if not sys.argv[6].replace('.','').isdigit() or (float(sys.argv[6]) < 0 and float(sys.argv[6])) > 1:
@@ -45,15 +48,16 @@ number_of_peers = int(sys.argv[1])
 fract_of_slow = 0.5
 fract_of_low_cpu = float(sys.argv[2])
 mean_exp_dist = float(sys.argv[3])
-simulation_time = int(sys.argv[4])
-c1 = float(sys.argv[5])
-c2 = float(sys.argv[6])
+mean_exp_dist_block = float(sys.argv[4])
+simulation_time = int(sys.argv[5])
+c1 = float(sys.argv[6])
+c2 = float(sys.argv[7])
 
 # Generate all nodes with respective peers
 
 # all_nodes = generate_nodes(number_of_peers, fract_of_slow, fract_of_low_cpu, mean_exp_dist)
 
-sim = simulator.simulator(number_of_peers, fract_of_slow, fract_of_low_cpu, mean_exp_dist, c1, c2)
+sim = simulator.simulator(number_of_peers, fract_of_slow, fract_of_low_cpu, mean_exp_dist, mean_exp_dist_block, c1, c2)
 sim.run_simulator(simulation_time)
 # time.sleep(simulation_time)
 # sim.stop_simulator()

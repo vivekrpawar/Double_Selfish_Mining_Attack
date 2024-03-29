@@ -6,19 +6,20 @@ import node, block # Import node class to create network
 from priority_queue import PriorityQueue
 import graph_utils 
 class simulator():
-    def __init__(self, number_of_peers, fract_of_slow, fract_of_low_cpu, exp_dist_mean, c1, c2):
+    def __init__(self, number_of_peers, fract_of_slow, fract_of_low_cpu, exp_dist_mean, exp_dist_mean_block, c1, c2):
         self.number_of_peers = number_of_peers
         self.fract_of_slow = fract_of_slow
         self.fract_of_low_cpu = fract_of_low_cpu
         self.exp_dist_mean = exp_dist_mean
+        self.exp_dist_mean_block = exp_dist_mean_block
         self.c1 = c1
         self.c2 = c2 
         self.simulation_running = True
         self.event_queue = PriorityQueue()
-        self.all_nodes = self.generate_nodes(self.number_of_peers-2, self.fract_of_slow, self.fract_of_low_cpu, self.exp_dist_mean, self.event_queue)
+        self.all_nodes = self.generate_nodes(self.number_of_peers-2, self.fract_of_slow, self.fract_of_low_cpu, self.exp_dist_mean, self.exp_dist_mean_block, self.event_queue)
 
     # Function to generate all peers of the node
-    def generate_nodes(self, number_of_peers, fract_of_slow, fract_of_low_cpu, exp_dist_mean, event_queue):
+    def generate_nodes(self, number_of_peers, fract_of_slow, fract_of_low_cpu, exp_dist_mean, exp_dist_mean_block, event_queue):
 
         # peers_dict will contain all the nodes created
         peers_dict = {}
@@ -66,21 +67,21 @@ class simulator():
             all_nodes[node_id] = float('inf')
             coins = random.randint(1000, 100000)
             hashing_power = hashing_power_list[i]
-            peers_dict['p'+str(i)] = node.Node(node_id, coins, hashing_power, is_slow[i], is_slow_cpu[i], exp_dist_mean, event_queue, genesis_block, False)
+            peers_dict['p'+str(i)] = node.Node(node_id, coins, hashing_power, is_slow[i], is_slow_cpu[i], exp_dist_mean, exp_dist_mean_block, event_queue, genesis_block, False)
             neighbours_dict['p'+str(i)] = []
             node_graph[node_id] = []
         
         # Generate adversary node c1
         c1_id = self.generate_unique_id()
         c1_coins = random.randint(1000, 100000)
-        peers_dict['p'+str(number_of_peers)] = node.Node(c1_id, c1_coins, self.c1, False, False, exp_dist_mean, event_queue, genesis_block, True)
+        peers_dict['p'+str(number_of_peers)] = node.Node(c1_id, c1_coins, self.c1, False, False, exp_dist_mean, exp_dist_mean_block, event_queue, genesis_block, True)
         neighbours_dict['p'+str(number_of_peers)] = []
         node_graph[c1_id] = []
 
         # Generate adversary node c2
         c2_id = self.generate_unique_id()
         c2_coins = random.randint(1000, 100000)
-        peers_dict['p'+str(number_of_peers+1)] = node.Node(c2_id, c2_coins, self.c2, False, False, exp_dist_mean, event_queue, genesis_block, True)
+        peers_dict['p'+str(number_of_peers+1)] = node.Node(c2_id, c2_coins, self.c2, False, False, exp_dist_mean, exp_dist_mean_block, event_queue, genesis_block, True)
         neighbours_dict['p'+str(number_of_peers+1)] = []
         node_graph[c2_id] = []
 
@@ -90,6 +91,8 @@ class simulator():
 
         print("Anamoly 1 id: "+c1_id)
         print("Anamoly 2 id: ", c2_id)
+        print("Honest node 1 id: ", peers_dict['p0'].node_id)
+
         while (not graph_utils.is_connected(node_graph)):
             # Generate neighbours
             for i in peers_dict.keys():
@@ -112,12 +115,8 @@ class simulator():
                 peers_dict[i].add_neighbours(neighbours_dict[i])
                 peers_dict[i].add_allNodes(all_nodes)
                 node_graph[peers_dict[i].node_id] = neighbours_dict[i]
-        # print(peers_dict)
+        
         self.peers_dict = peers_dict
-        # print(f"Number of peers: {len(peers_dict)}") 
-        # for p in peers_dict.keys():
-        #     print(peers_dict[p].node_id)
-        # graph_utils.print_graph(peers_dict)
         return peers_dict
 
     def generate_unique_id(self):
@@ -175,21 +174,18 @@ class simulator():
             curr_time = time.time() 
         print("Similation is stopped!")
         print("------------------------------------------------------------------------------------------------------")
-        total_interarrival_time = 0
         longest_chain = []
         longest_honest_chain = []
         node_mapping, miner_mapping = self.get_block_mapping(self.peers_dict)
         self.save_miner_mappings(miner_mapping)
         for i in self.peers_dict.keys():
-            # self.print_longest_chain(self.peers_dict[i])
-            total_interarrival_time += self.peers_dict[i].avg_interarrival_time
+            # self.print_longest_chain(self.peers_dict[i]) 
             self.save_chain_tree(self.peers_dict[i], node_mapping)
             curr_longest_chain = self.get_longest_chain(self.peers_dict[i])
             if len(curr_longest_chain) > len(longest_chain):
                 longest_chain = curr_longest_chain
                 if(self.peers_dict[i].node_id != self.c1_id and self.peers_dict[i].node_id != self.c2_id):
-                    longest_honest_chain = curr_longest_chain
-            # print(f"Interarrival time:{self.peers_dict[i].avg_interarrival_time}")
+                    longest_honest_chain = curr_longest_chain 
         
         # Total number of block in the blockhonest blockchain
         lvc_length = len(longest_honest_chain)

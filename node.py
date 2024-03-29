@@ -5,7 +5,7 @@ from block import Block
 import events
 from priority_queue import PriorityQueue
 class Node:
-    def __init__(self, node_id, coins ,hashing_power, is_slow, is_slow_cpu, exp_dist_mean, event_queue, genesis_block, is_attacker):
+    def __init__(self, node_id, coins ,hashing_power, is_slow, is_slow_cpu, exp_dist_mean, exp_dist_mean_block, event_queue, genesis_block, is_attacker):
         # Data members
         self.node_id = node_id
         self.coins = coins
@@ -13,6 +13,7 @@ class Node:
         self.is_slow_cpu= is_slow_cpu
         self.hashing_power = hashing_power
         self.exp_dist_mean = exp_dist_mean 
+        self.exp_dist_mean_block = exp_dist_mean_block
         self.running = True
         self.is_attacker = is_attacker # Indicates wheather the node is advesary or not
         self.neighbours = []    #list of nodes neighbours
@@ -37,7 +38,6 @@ class Node:
 
         # Create a file for each node with the format "file_node_id.txt"
         self.file_name = f"./node_files/file_{self.node_id}.txt"
-        self.avg_interarrival_time = 0 # average interarrival time of all the blocks in received so far.
 
         # Count of number of block mined by the node
         self.block_mined_count = 0
@@ -348,7 +348,7 @@ class Node:
         # avg_interarrival_time = (self.last_block_time_stamp - self.first_block_time_stamp)/len(prev_longest_chain)
         # if(avg_interarrival_time == 0):
             # avg_interarrival_time = 1
-        avg_interarrival_time = 1
+        avg_interarrival_time = self.exp_dist_mean_block 
         self.avg_interarrival_time = avg_interarrival_time
         hashing_power = self.hashing_power
         mining_time = nprandom.exponential(avg_interarrival_time/hashing_power)
