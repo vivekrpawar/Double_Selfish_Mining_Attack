@@ -230,7 +230,7 @@ class Node:
 
             if(top_block.created_by == self.node_id): 
                 continue
-            
+
             if(top_block.prev_block_id == self.prev_block_id ):
                 # This means that the block will simply extend the current blockchain
                 self.blocks[top_block.block_id] = top_block
@@ -301,8 +301,7 @@ class Node:
                                 block = block_to_release
                             )
                             self.event_queue.push(event, event.timestamp)
-                self.prev_block_id = self.prev_private_block_id
-                # self.prev_private_block_id = self.prev_block_id
+                self.prev_block_id = self.prev_private_block_id 
             elif (private_chain_length -lvc_length == 0):
                 if len(self.private_chain) > 0:
                     block_to_release = self.private_chain.pop(0)
@@ -327,12 +326,12 @@ class Node:
             elif (private_chain_length -lvc_length <= -1):
                 # If current lead is 0 and received a block then start new attack on the received block
                 self.prev_private_block_id = self.prev_block_id
-                self.private_chain.clear
-                # current_time = time.time()
-                # event  = events.BlockGenerate(self.node_id, self, self.node_id, current_time)
-                # self.event_queue.push(event, event.timestamp) 
-                # self.generated_blocks.add(block.block_id)
-
+                self.private_chain.clear()
+                current_time = time.time()
+                event  = events.BlockGenerate(self.node_id, self, self.node_id, current_time)
+                self.event_queue.push(event, event.timestamp) 
+                self.generated_blocks.add(block.block_id)
+    
 
         # Now broadcast the received block to neighbours
         if (not self.is_attacker) and (block.block_id not in self.sent_blocks):
@@ -349,7 +348,7 @@ class Node:
                         block = block
                     )
                     self.event_queue.push(event, event.timestamp) 
-            
+             
     # Function to get details about spent transactions
     def get_spent_transactions(self):
         curr_node = self.prev_block_id
