@@ -125,16 +125,18 @@ class Node:
             timestamp = time.time()
         )
         transactions_in_block.insert(0, coinbase_transaction)
+        prev_block_id_to_mine = self.prev_block_id
+        if(self.is_attacker) and len(self.blocks[self.prev_private_block_id]) >= len(self.blocks[self.prev_block_id]):
+            prev_block_id_to_mine = self.prev_private_block_id
         block = Block(
                 block_id = str(int(time.time()))+str(self.node_id),
                 created_by = self.node_id,
                 mining_time = mining_time,
-                prev_block_id = self.prev_private_block_id if self.is_attacker else self.prev_block_id,
+                prev_block_id = prev_block_id_to_mine,
                 transactions = transactions_in_block,
                 length_of_chain = len(prev_longest_chain)+1,
                 timestamp = time.time()
             )
-        
         current_time = time.time()
         if(block.block_id not in self.blocks.keys()):
             event  = events.BlockMined(self.node_id, self, self.node_id, current_time+mining_time, block)
@@ -172,7 +174,7 @@ class Node:
                 file.write("Block: "+str(block.block_id)+" mined by= "+str(self.node_id)+" at time: "+str(time.time())+".") 
         else: 
             current_lead = len(self.blocks[self.prev_private_block_id])-len(self.blocks[self.prev_block_id]) # Get the longest chain length
-            if(current_lead == 0) and (self.blocks[self.prev_private_block_id].prev_block_id == self.blocks[self.prev_block_id].prev_block_id):
+            if(current_lead == 0) and (self.blocks[self.prev_private_block_id].prev_block_id == self.blocks[self.prev_block_id].prev_block_id) and len(self.private_chain) > 0:
                 # Current lead is zero and attacker generates the block before honest miner
                 # Then node adds the block in chain and broadcast the generated block
                 self.blocks[block.block_id] = block
@@ -191,8 +193,9 @@ class Node:
                     )
                     self.event_queue.push(event, event.timestamp)  
                 self.sent_blocks.add(block.block_id)
+                self.private_chain.clear()
                 self.block_mined_count += 1
-            else:
+            elif current_lead >= 0:
                 self.blocks[block.block_id] = block
                 self.prev_private_block_id = block.block_id 
                 self.private_chain.append(block)
@@ -203,6 +206,7 @@ class Node:
             event  = events.BlockGenerate(self.node_id, self, self.node_id, current_time)
             self.event_queue.push(event, event.timestamp) 
             self.generated_blocks.add(block.block_id)
+
     # Function to receive block from neighbouring peers
     def receive_block(self, block, event_created_by):
         with open(self.file_name, 'a') as file:
@@ -224,9 +228,9 @@ class Node:
             if not self.is_valid(top_block):
                 continue
 
-            if(top_block.block_id in self.blocks.keys() or  top_block.created_by == self.node_id): 
+            if(top_block.created_by == self.node_id): 
                 continue
-
+            
             if(top_block.prev_block_id == self.prev_block_id ):
                 # This means that the block will simply extend the current blockchain
                 self.blocks[top_block.block_id] = top_block
@@ -256,13 +260,16 @@ class Node:
                 if curr_block_id == -1:
                     break
                 curr_block_id = self.blocks[curr_block_id].prev_block_id
-            if self.blocks[curr_block_id].created_by == self.node_id:
+            if curr_block_id != -1 and self.blocks[curr_block_id].created_by == self.node_id:
                 self.coins += 50
         if self.is_attacker:
             lvc_length = len(self.blocks[self.prev_block_id])
             private_chain_length = len(self.blocks[self.prev_private_block_id])
+            # print(f" prev_block_id {self.prev_block_id} prev_private_block_id {self.prev_private_block_id}")
+            # print(f"Attacker {lvc_length} Private chain {private_chain_length}")
+        
             # If the lead is greater than 2 and we recieved a block then release one block from the private chain
-            if(private_chain_length -lvc_length >= 2) and len(self.private_chain) > 0:
+            if(private_chain_length - lvc_length >= 2) and len(self.private_chain) > 0:
                 block_to_release = self.private_chain.pop(0)
                 self.sent_blocks.add(block_to_release.block_id)
                 for neighbour in self.neighbours:
@@ -295,29 +302,36 @@ class Node:
                             )
                             self.event_queue.push(event, event.timestamp)
                 self.prev_block_id = self.prev_private_block_id
-            elif (private_chain_length -lvc_length == 0) and len(self.private_chain) > 0:
-                block_to_release = self.private_chain.pop(0)
-                self.sent_blocks.add(block_to_release.block_id)
-                for neighbour in self.neighbours:
-                    if(neighbour.node_id != event_created_by and neighbour.node_id != block_to_release.created_by):
-                        delay = self.get_latency("block", neighbour.is_slow_cpu, neighbour.node_id, len(block_to_release.transactions))
-                        scheduled_timestamp = time.time() + delay  # Adjust the range as needed
-                        event = events.BlockReceive(
-                            event_created_by=self.node_id,
-                            node=neighbour,
-                            node_id=neighbour.node_id,
-                            timestamp=scheduled_timestamp,
-                            block = block_to_release
-                        )
-                        self.event_queue.push(event, event.timestamp)
-            elif (private_chain_length -lvc_length == -1):
+                # self.prev_private_block_id = self.prev_block_id
+            elif (private_chain_length -lvc_length == 0):
+                if len(self.private_chain) > 0:
+                    block_to_release = self.private_chain.pop(0)
+                    self.sent_blocks.add(block_to_release.block_id)
+                    for neighbour in self.neighbours:
+                        if(neighbour.node_id != event_created_by and neighbour.node_id != block_to_release.created_by):
+                            delay = self.get_latency("block", neighbour.is_slow_cpu, neighbour.node_id, len(block_to_release.transactions))
+                            scheduled_timestamp = time.time() + delay  # Adjust the range as needed
+                            event = events.BlockReceive(
+                                event_created_by=self.node_id,
+                                node=neighbour,
+                                node_id=neighbour.node_id,
+                                timestamp=scheduled_timestamp,
+                                block = block_to_release
+                            )
+                            self.event_queue.push(event, event.timestamp)
+                    self.prev_private_block_id = block_to_release.block_id
+                else:
+                    # If private chain length was zeros and new block is received the simply add it to lvc
+                    self.prev_private_block_id = self.prev_block_id
+                    self.private_chain.clear()
+            elif (private_chain_length -lvc_length <= -1):
                 # If current lead is 0 and received a block then start new attack on the received block
                 self.prev_private_block_id = self.prev_block_id
                 self.private_chain.clear
-                current_time = time.time()
-                event  = events.BlockGenerate(self.node_id, self, self.node_id, current_time)
-                self.event_queue.push(event, event.timestamp) 
-                self.generated_blocks.add(block.block_id)
+                # current_time = time.time()
+                # event  = events.BlockGenerate(self.node_id, self, self.node_id, current_time)
+                # self.event_queue.push(event, event.timestamp) 
+                # self.generated_blocks.add(block.block_id)
 
 
         # Now broadcast the received block to neighbours
