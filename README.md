@@ -47,6 +47,7 @@ $pip install -r requirements.txt
 5. time: Simulation time.
 6. C1: Hashing power of adversary 1
 7. C2: Hashing power of adversary 2
+
 (Here Z0 is set to 0.5 are mentined in the problem statement)
 ## Simulation Execution
 
